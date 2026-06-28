@@ -216,3 +216,31 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ════════════════════════════════════════════════════════════
+# PROJECT-SPECIFIC — protect API keys and cached data
+# ════════════════════════════════════════════════════════════
+
+# API keys
+.env
+*.env
+.env.local
+
+# Cached papers and API responses — can be regenerated
+cache/
+.cache/
+papers/
+arxiv_pdfs/
+*.pdf
+
+# Evaluation outputs with external content
+eval/external/
+eval/cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
