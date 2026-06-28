@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "General CS/ML Paper Extraction Schema",
+  "description": "Fields to extract from a computer science or machine learning paper.",
+  "type": "object",
+  "properties": {
+    "research_question": {
+      "type": "string",
+      "description": "The central research question or problem the paper addresses."
+    },
+    "method": {
+      "type": "string",
+      "description": "The primary method, model, or algorithm proposed or studied."
+    },
+    "dataset": {
+      "type": "string",
+      "description": "Datasets used for training, evaluation, or experiments."
+    },
+    "key_results": {
+      "type": "string",
+      "description": "Main empirical findings, benchmark scores, or theoretical results."
+    },
+    "limitations": {
+      "type": "string",
+      "description": "Acknowledged limitations, failure modes, or scope restrictions."
+    }
+  },
+  "required": ["research_question", "method", "dataset", "key_results", "limitations"]
+}
