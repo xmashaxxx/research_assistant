@@ -1,16 +1,19 @@
-"""Skeleton tests: verify package structure and registry wiring before any capability is implemented."""
+"""Skeleton tests: verify package structure and registry wiring."""
 
 import pytest
 import research_assistant
 from research_assistant.context import ResearchContext
 from research_assistant.registry import registry
 
-EXPECTED_CAPABILITIES = {"search", "fetch", "extract", "compare", "synthesize"}
+ALL_CAPABILITIES = {"search", "fetch", "extract", "compare", "synthesize"}
+
+# Update this set as capabilities are implemented.
+STUB_CAPABILITIES = {"fetch", "extract", "compare", "synthesize"}
 
 
 def test_registry_contains_all_capabilities():
-    assert EXPECTED_CAPABILITIES.issubset(set(registry.keys())), (
-        f"Missing capabilities: {EXPECTED_CAPABILITIES - set(registry.keys())}"
+    assert ALL_CAPABILITIES.issubset(set(registry.keys())), (
+        f"Missing capabilities: {ALL_CAPABILITIES - set(registry.keys())}"
     )
 
 
@@ -29,8 +32,8 @@ def test_research_context_with_query():
     assert ctx.query == "What are the best RAG architectures in 2024?"
 
 
-@pytest.mark.parametrize("capability_name", sorted(EXPECTED_CAPABILITIES))
-def test_each_capability_raises_not_implemented(capability_name):
+@pytest.mark.parametrize("capability_name", sorted(STUB_CAPABILITIES))
+def test_stub_capabilities_raise_not_implemented(capability_name):
     ctx = ResearchContext(query="test")
     with pytest.raises(NotImplementedError):
         registry[capability_name](ctx)
