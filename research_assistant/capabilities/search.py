@@ -8,8 +8,9 @@ from research_assistant.context import ResearchContext
 from research_assistant.models import PaperRecord
 from research_assistant.registry import register
 
-_ARXIV_API = "http://export.arxiv.org/api/query"
+_ARXIV_API = "https://export.arxiv.org/api/query"
 _ATOM_NS = "http://www.w3.org/2005/Atom"
+_ARXIV_NS = "http://arxiv.org/schemas/atom"
 
 
 def _text(entry: ET.Element, tag: str) -> str:
@@ -71,6 +72,18 @@ def search_papers(context: ResearchContext) -> None:
             if (name := author.find(f"{{{_ATOM_NS}}}name")) is not None
         ]
 
+        categories = [
+            el.get("term", "")
+            for el in entry.findall(f"{{{_ATOM_NS}}}category")
+            if el.get("term")
+        ]
+
+        pc_el = entry.find(f"{{{_ARXIV_NS}}}primary_category")
+        primary_category = (
+            pc_el.get("term", "") if pc_el is not None
+            else (categories[0] if categories else "")
+        )
+
         papers.append(
             PaperRecord(
                 arxiv_id=arxiv_id,
@@ -80,6 +93,9 @@ def search_papers(context: ResearchContext) -> None:
                 published=_text(entry, "published"),
                 pdf_url=f"https://arxiv.org/pdf/{arxiv_id}",
                 arxiv_url=f"https://arxiv.org/abs/{arxiv_id}",
+                categories=categories,
+                primary_category=primary_category,
+                source="arxiv",
             )
         )
 

@@ -12,7 +12,7 @@ from research_assistant.context import ResearchContext
 from research_assistant.models import PaperRecord
 from research_assistant.registry import register
 
-_ARXIV_API = "http://export.arxiv.org/api/query"
+_ARXIV_API = "https://export.arxiv.org/api/query"
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 _ARXIV_NS = "http://arxiv.org/schemas/atom"
 _MAX_TEXT_CHARS = 50_000
