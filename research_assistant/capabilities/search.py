@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import requests
 
 from research_assistant.context import ResearchContext
+from research_assistant.models import PaperRecord
 from research_assistant.registry import register
 
 _ARXIV_API = "http://export.arxiv.org/api/query"
@@ -18,11 +19,10 @@ def _text(entry: ET.Element, tag: str) -> str:
 
 @register("search")
 def search_papers(context: ResearchContext) -> None:
-    """Query arXiv and populate context.found_papers.
+    """Query arXiv and populate context.found_papers with PaperRecord objects.
 
     Calls the arXiv Atom API with the context query, parses the response,
-    and stores up to 10 results as dicts with keys:
-        arxiv_id, title, authors, abstract, published, pdf_url, arxiv_url
+    and stores up to 10 results as PaperRecord instances in context.found_papers.
     """
     query = context.query
     print(f"[search] Querying arXiv for: {query}")
@@ -72,15 +72,15 @@ def search_papers(context: ResearchContext) -> None:
         ]
 
         papers.append(
-            {
-                "arxiv_id": arxiv_id,
-                "title": _text(entry, "title"),
-                "authors": authors,
-                "abstract": _text(entry, "summary"),
-                "published": _text(entry, "published"),
-                "pdf_url": f"https://arxiv.org/pdf/{arxiv_id}",
-                "arxiv_url": f"https://arxiv.org/abs/{arxiv_id}",
-            }
+            PaperRecord(
+                arxiv_id=arxiv_id,
+                title=_text(entry, "title"),
+                authors=authors,
+                abstract=_text(entry, "summary"),
+                published=_text(entry, "published"),
+                pdf_url=f"https://arxiv.org/pdf/{arxiv_id}",
+                arxiv_url=f"https://arxiv.org/abs/{arxiv_id}",
+            )
         )
 
     context.found_papers = papers

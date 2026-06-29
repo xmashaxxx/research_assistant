@@ -8,7 +8,7 @@ from research_assistant.registry import registry
 ALL_CAPABILITIES = {"search", "fetch", "extract", "compare", "synthesize"}
 
 # Update this set as capabilities are implemented.
-STUB_CAPABILITIES = {"fetch", "extract", "compare", "synthesize"}
+STUB_CAPABILITIES = {"extract", "compare", "synthesize"}
 
 
 def test_registry_contains_all_capabilities():
