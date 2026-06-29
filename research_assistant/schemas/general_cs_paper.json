@@ -13,17 +13,22 @@
       "description": "The primary method, model, or algorithm proposed or studied."
     },
     "dataset": {
-      "type": "string",
-      "description": "Datasets used for training, evaluation, or experiments."
+      "type": ["string", "null"],
+      "description": "Datasets used for training, evaluation, or experiments. Null if none mentioned."
     },
     "key_results": {
       "type": "string",
       "description": "Main empirical findings, benchmark scores, or theoretical results."
     },
     "limitations": {
-      "type": "string",
-      "description": "Acknowledged limitations, failure modes, or scope restrictions."
+      "type": ["string", "null"],
+      "description": "Acknowledged limitations, failure modes, or scope restrictions. Null if not stated."
+    },
+    "related_work": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "description": "Key related works or prior approaches the paper explicitly builds on. Null if not discussed."
     }
   },
-  "required": ["research_question", "method", "dataset", "key_results", "limitations"]
+  "required": ["research_question", "method", "dataset", "key_results", "limitations", "related_work"]
 }
