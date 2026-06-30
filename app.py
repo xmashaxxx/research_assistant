@@ -1,5 +1,6 @@
 """Streamlit presentation layer for the research assistant pipeline."""
 
+import io
 import os
 
 import streamlit as st
@@ -78,10 +79,42 @@ if mode == "Ask a Research Question":
 
 else:
     st.markdown(
-        "Describe your project — a sentence or two, or paste your full abstract. "
-        "The assistant finds arXiv papers relevant to your specific work and explains why each one matters."
+        "Describe your project — paste text below, or upload a PDF (abstract, proposal, or draft). "
+        "If you provide both, the PDF takes precedence."
     )
-    project_description = st.text_area(
+
+    _PDF_CHAR_LIMIT = 15_000
+
+    uploaded_pdf = st.file_uploader("Upload your project description (PDF)", type=["pdf"])
+    pdf_text: str = ""
+
+    if uploaded_pdf is not None:
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(uploaded_pdf.read()))
+            pages_text = []
+            for page in reader.pages:
+                pages_text.append(page.extract_text() or "")
+            raw = "\n".join(pages_text).strip()
+            if not raw:
+                st.error(
+                    "Couldn't extract text from this PDF — it may be a scanned image. "
+                    "Try pasting the text instead."
+                )
+            else:
+                truncated = len(raw) > _PDF_CHAR_LIMIT
+                pdf_text = raw[:_PDF_CHAR_LIMIT]
+                msg = f"Extracted {len(pdf_text):,} characters from **{uploaded_pdf.name}**"
+                if truncated:
+                    msg += f" (truncated from {len(raw):,} — first {_PDF_CHAR_LIMIT:,} chars used)"
+                st.success(msg)
+        except Exception as exc:
+            st.error(
+                f"Couldn't read this PDF ({exc}). "
+                "It may be corrupted or encrypted. Try pasting the text instead."
+            )
+
+    typed_text = st.text_area(
         label="Project description",
         placeholder=(
             "I'm building a retrieval-augmented generation pipeline using a quantized Llama model "
@@ -92,6 +125,9 @@ else:
         height=140,
         label_visibility="collapsed",
     )
+
+    # PDF takes precedence when both are provided
+    project_description = pdf_text if pdf_text else typed_text
     ready = bool(project_description.strip())
 
 run = st.button("Run Research", type="primary", disabled=not ready)
