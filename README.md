@@ -1,7 +1,7 @@
 # research_assistant
 
 An agentic research assistant that takes a natural-language research question, searches arXiv for relevant papers, reads and extracts structured findings from each, compares them across papers, and synthesizes a literature review that directly answers the question with citations. The technical thesis is that a multi-step pipeline — search, extract, compare, synthesize as separable capabilities — produces a more accurate and traceable synthesis than single-pass summarization: each stage operates on structured output from the one before it, so errors are localized and the final synthesis is grounded in verified intermediate representations rather than raw text.
-
+Watch the demo ----> https://youtu.be/ypGdeR_sSE8
 ---
 
 ## Pipeline
