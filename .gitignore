@@ -236,6 +236,7 @@ arxiv_pdfs/
 # Evaluation outputs with external content
 eval/external/
 eval/cache/
+eval/results/
 
 # Streamlit
 .streamlit/secrets.toml

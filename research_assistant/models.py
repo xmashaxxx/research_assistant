@@ -28,6 +28,11 @@ class PaperRecord:
     pdf_url: str
     arxiv_url: str
 
+    # --- classification fields (populated by both search and fetch) ---
+    categories: list[str] = field(default_factory=list)
+    primary_category: str = ""
+    source: str = "arxiv"
+
     # --- fetch fields (optional until fetch stage runs) ---
     full_text: str | None = None
     citation_count: int | None = None
