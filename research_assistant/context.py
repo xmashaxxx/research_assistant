@@ -17,3 +17,5 @@ class ResearchContext:
     comparisons: dict = field(default_factory=dict)
     synthesis: str | None = None
     extraction_schema: str = "general_cs_paper"
+    project_description: str | None = None
+    related_work_result: dict | None = None

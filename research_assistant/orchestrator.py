@@ -5,6 +5,9 @@ from __future__ import annotations
 from research_assistant.context import ResearchContext
 from research_assistant.registry import registry
 
+_GENERAL_PIPELINE = ["search", "fetch", "extract", "compare", "synthesize"]
+_PROJECT_PIPELINE = ["search", "fetch", "extract", "compare", "relate"]
+
 
 def run(context: ResearchContext, capability_names: list[str]) -> ResearchContext:
     """Execute capabilities in order, passing context through each stage.
@@ -17,3 +20,15 @@ def run(context: ResearchContext, capability_names: list[str]) -> ResearchContex
             raise KeyError(f"No capability registered under '{name}'")
         registry[name](context)
     return context
+
+
+def run_pipeline(context: ResearchContext) -> ResearchContext:
+    """Run the appropriate pipeline based on context mode.
+
+    If context.project_description is set, runs the "relate" pipeline
+    (search → fetch → extract → compare → relate).
+    Otherwise runs the standard synthesis pipeline
+    (search → fetch → extract → compare → synthesize).
+    """
+    pipeline = _PROJECT_PIPELINE if context.project_description else _GENERAL_PIPELINE
+    return run(context, pipeline)
