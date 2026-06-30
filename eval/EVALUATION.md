@@ -1,5 +1,5 @@
 # Evaluation: Research Assistant vs. Gao et al. RAG Survey
-Watch the demo ----> https://youtu.be/ypGdeR_sSE8
+
 ## Methodology
 
 The evaluation tests whether the research assistant can independently answer a question that a canonical human-authored survey was written to address. The target paper is:
