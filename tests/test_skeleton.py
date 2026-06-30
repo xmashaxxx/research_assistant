@@ -1,14 +1,14 @@
-"""Skeleton tests: verify package structure and registry wiring."""
+"""Skeleton tests: verify package structure and registry wiring.
 
-import pytest
+All five v1 capabilities are now implemented — no stubs remain.
+This file retains the registry and ResearchContext sanity checks.
+"""
+
 import research_assistant
 from research_assistant.context import ResearchContext
 from research_assistant.registry import registry
 
 ALL_CAPABILITIES = {"search", "fetch", "extract", "compare", "synthesize"}
-
-# Update this set as capabilities are implemented.
-STUB_CAPABILITIES = {"synthesize"}
 
 
 def test_registry_contains_all_capabilities():
@@ -30,10 +30,3 @@ def test_research_context_default_instantiation():
 def test_research_context_with_query():
     ctx = ResearchContext(query="What are the best RAG architectures in 2024?")
     assert ctx.query == "What are the best RAG architectures in 2024?"
-
-
-@pytest.mark.parametrize("capability_name", sorted(STUB_CAPABILITIES))
-def test_stub_capabilities_raise_not_implemented(capability_name):
-    ctx = ResearchContext(query="test")
-    with pytest.raises(NotImplementedError):
-        registry[capability_name](ctx)
