@@ -148,6 +148,92 @@ def _fetch_semantic_scholar(arxiv_id: str) -> tuple[int | None, list | None]:
         return None, None
 
 
+_PWC_BASE = "https://paperswithcode.com/api/v1"
+_PWC_HEADERS = {"User-Agent": "research-assistant/0.1"}
+
+
+def _fetch_papers_with_code(
+    arxiv_id: str,
+) -> tuple[list[dict] | None, str | None]:
+    """Return (benchmark_results, code_url) from Papers with Code, or (None, None).
+
+    Makes up to three requests:
+      1. Search for the paper by arXiv ID → get the PwC slug
+      2. Fetch evaluation results for that slug → extract up to 5 benchmarks
+      3. Fetch repositories → pick the one with the most stars
+
+    Any failure (HTTP error, missing data, network timeout) returns (None, None)
+    so the pipeline continues without benchmark data.
+    """
+    try:
+        # --- Step 1: find PwC paper ID ---
+        resp = requests.get(
+            f"{_PWC_BASE}/papers/",
+            params={"arxiv_id": arxiv_id},
+            timeout=10,
+            headers=_PWC_HEADERS,
+        )
+        if resp.status_code != 200:
+            return None, None
+        search_data = resp.json()
+        items = search_data.get("results") or []
+        if not items:
+            return None, None
+        pwc_id = items[0].get("id")
+        if not pwc_id:
+            return None, None
+
+        # --- Step 2: benchmark results ---
+        benchmark_results: list[dict] | None = None
+        resp2 = requests.get(
+            f"{_PWC_BASE}/paper/{pwc_id}/results/",
+            timeout=10,
+            headers=_PWC_HEADERS,
+        )
+        if resp2.status_code == 200:
+            raw = (resp2.json().get("results") or [])[:5]
+            parsed = []
+            for r in raw:
+                task_obj = r.get("task") or {}
+                task = task_obj.get("name") or str(task_obj) if task_obj else ""
+                dataset_obj = r.get("dataset") or {}
+                dataset = dataset_obj.get("name") or str(dataset_obj) if dataset_obj else ""
+                metrics = r.get("metrics") or []
+                if metrics:
+                    m = metrics[0]
+                    metric = (m.get("type") or {}).get("name") or ""
+                    score = str(m.get("value") or "")
+                else:
+                    metric = score = ""
+                if task or dataset:
+                    parsed.append(
+                        {"task": task, "dataset": dataset, "metric": metric, "score": score}
+                    )
+            if parsed:
+                benchmark_results = parsed
+
+        # --- Step 3: best code repository ---
+        code_url: str | None = None
+        resp3 = requests.get(
+            f"{_PWC_BASE}/paper/{pwc_id}/repositories/",
+            timeout=10,
+            headers=_PWC_HEADERS,
+        )
+        if resp3.status_code == 200:
+            repos = resp3.json().get("results") or []
+            if repos:
+                best = max(repos, key=lambda r: r.get("stars") or 0)
+                code_url = best.get("url") or None
+
+        n = len(benchmark_results or [])
+        print(f"[fetch] PwC: {n} benchmark results, code: {code_url or 'none'}")
+        return benchmark_results, code_url
+
+    except Exception as exc:
+        print(f"[fetch] PwC: error — {exc}")
+        return None, None
+
+
 def fetch_papers(ids: list[str]) -> list[PaperRecord]:
     """Fetch complete PaperRecord objects for a list of arXiv IDs.
 
@@ -190,6 +276,9 @@ def fetch_papers(ids: list[str]) -> list[PaperRecord]:
         else:
             print("[fetch]   Semantic Scholar: no data")
 
+        time.sleep(0.5)
+        benchmark_results, code_url = _fetch_papers_with_code(arxiv_id)
+
         records.append(
             PaperRecord(
                 arxiv_id=arxiv_id,
@@ -205,6 +294,8 @@ def fetch_papers(ids: list[str]) -> list[PaperRecord]:
                 full_text=full_text,
                 citation_count=citation_count,
                 references=references,
+                benchmark_results=benchmark_results,
+                code_url=code_url,
             )
         )
 
