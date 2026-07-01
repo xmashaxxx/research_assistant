@@ -233,6 +233,14 @@ if mode == "Ask a Research Question":
                 if len(paper.authors) > 3:
                     author_str += f" et al. ({len(paper.authors)})"
                 st.caption(author_str)
+                if paper.code_url:
+                    st.markdown(f"[View Code]({paper.code_url})")
+                if paper.benchmark_results:
+                    for b in paper.benchmark_results:
+                        st.caption(
+                            f"{b.get('task','')} / {b.get('dataset','')}: "
+                            f"{b.get('metric','')} = {b.get('score','')}"
+                        )
             with col_meta:
                 st.caption(paper.published[:10])
                 st.caption(paper.arxiv_id)
@@ -304,6 +312,14 @@ else:
                 if len(paper.authors) > 3:
                     author_str += f" et al. ({len(paper.authors)})"
                 st.caption(author_str)
+                if paper.code_url:
+                    st.markdown(f"[View Code]({paper.code_url})")
+                if paper.benchmark_results:
+                    for b in paper.benchmark_results:
+                        st.caption(
+                            f"{b.get('task','')} / {b.get('dataset','')}: "
+                            f"{b.get('metric','')} = {b.get('score','')}"
+                        )
             with col_meta:
                 st.caption(paper.published[:10])
                 st.caption(paper.arxiv_id)

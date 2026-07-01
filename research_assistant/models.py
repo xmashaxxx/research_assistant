@@ -37,3 +37,5 @@ class PaperRecord:
     full_text: str | None = None
     citation_count: int | None = None
     references: list[dict] | None = None
+    benchmark_results: list[dict] | None = None  # from Papers with Code
+    code_url: str | None = None                  # best repo URL from Papers with Code

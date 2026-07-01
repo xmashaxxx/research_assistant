@@ -86,12 +86,24 @@ def _build_prompt(paper: PaperRecord) -> str:
         body = paper.abstract
         source_label = "abstract only"
 
-    return (
+    prompt = (
         f"Title: {paper.title}\n"
         f"Authors: {authors}\n"
         f"arXiv: {paper.arxiv_id}\n\n"
         f"Paper text ({source_label}):\n\n{body}"
     )
+
+    if paper.benchmark_results:
+        lines = ["Benchmark results from Papers with Code:"]
+        for b in paper.benchmark_results:
+            task = b.get("task", "")
+            dataset = b.get("dataset", "")
+            metric = b.get("metric", "")
+            score = b.get("score", "")
+            lines.append(f"  - {task} / {dataset}: {metric} = {score}")
+        prompt += "\n\n" + "\n".join(lines)
+
+    return prompt
 
 
 def extract_paper(paper: PaperRecord) -> dict:
