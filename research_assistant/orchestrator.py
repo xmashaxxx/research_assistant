@@ -5,7 +5,7 @@ from __future__ import annotations
 from research_assistant.context import ResearchContext
 from research_assistant.registry import registry
 
-_GENERAL_PIPELINE = ["search", "fetch", "extract", "compare", "synthesize"]
+_GENERAL_PIPELINE = ["search", "fetch", "extract", "compare", "synthesize", "ideate"]
 _PROJECT_PIPELINE = ["search", "fetch", "extract", "compare", "relate"]
 
 
