@@ -6,6 +6,7 @@ import os
 import streamlit as st
 
 import research_assistant  # noqa: F401 — triggers capability self-registration
+from research_assistant.capabilities.codegen import generate_experiment_code
 from research_assistant.context import ResearchContext
 from research_assistant.registry import registry
 
@@ -33,12 +34,14 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Pipeline (both modes)**")
     st.markdown(
-        "1. Search — arXiv keyword search  \n"
-        "2. Fetch — full text + Semantic Scholar  \n"
+        "1. Search — arXiv + Semantic Scholar  \n"
+        "2. Fetch — full text + Papers with Code  \n"
         "3. Extract — Claude Haiku (tool-use)  \n"
         "4. Compare — Claude Haiku (tool-use)  \n"
         "5a. *Question mode* — Synthesize (Claude Sonnet)  \n"
-        "5b. *Project mode* — Relate to project (Claude Haiku)  \n"
+        "5b. *Question mode* — Ideate (Claude Sonnet)  \n"
+        "5c. *Project mode* — Relate to project (Claude Haiku)  \n"
+        "6. *Optional* — Generate code (Claude Sonnet, user-triggered)  \n"
     )
     st.markdown("---")
     st.caption(
@@ -132,103 +135,126 @@ else:
 
 run = st.button("Run Research", type="primary", disabled=not ready)
 
-if not run:
+# ---------------------------------------------------------------------------
+# Gate: pass through if pipeline just ran OR results are cached from last run
+# ---------------------------------------------------------------------------
+
+if not run and "pipeline_results" not in st.session_state:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Pre-flight: API key check
+# Pipeline execution — only when "Run Research" is clicked
 # ---------------------------------------------------------------------------
 
-if not os.environ.get("ANTHROPIC_API_KEY"):
-    st.error(
-        "**ANTHROPIC_API_KEY is not set.**\n\n"
-        "The extract, compare, and synthesize stages require the Anthropic API. "
-        "Set the environment variable and restart:\n\n"
-        "```\nexport ANTHROPIC_API_KEY=sk-ant-...\nstreamlit run app.py\n```"
-    )
-    st.stop()
+if run:
+    # Clear stale results so the code generation section doesn't show old output
+    for _k in ("pipeline_results", "generated_code"):
+        st.session_state.pop(_k, None)
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        st.error(
+            "**ANTHROPIC_API_KEY is not set.**\n\n"
+            "The extract, compare, and synthesize stages require the Anthropic API. "
+            "Set the environment variable and restart:\n\n"
+            "```\nexport ANTHROPIC_API_KEY=sk-ant-...\nstreamlit run app.py\n```"
+        )
+        st.stop()
+
+    if mode == "Ask a Research Question":
+        context = ResearchContext(query=query.strip())
+    else:
+        context = ResearchContext(project_description=project_description.strip())
+
+    _failed_stage: str | None = None
+
+    with st.status("Starting pipeline…", expanded=True) as status:
+        try:
+            if mode == "Find Related Work for My Project":
+                status.update(label="Distilling search terms from project description…")
+            else:
+                status.update(label="Searching arXiv…")
+            registry["search"](context)
+
+            if not context.found_papers:
+                status.update(label="No papers found.", state="error")
+                st.warning("arXiv returned no results. Try rephrasing your input.")
+                st.stop()
+
+            st.write(f"Found **{len(context.found_papers)}** papers.")
+
+            status.update(label=f"Fetching {len(context.found_papers)} papers…")
+            registry["fetch"](context)
+            st.write(f"Fetched text for **{len(context.summaries)}** papers.")
+
+            status.update(label="Extracting key information…")
+            registry["extract"](context)
+            st.write(f"Extracted structured fields from **{len(context.summaries)}** papers.")
+
+            status.update(label="Comparing findings across papers…")
+            registry["compare"](context)
+            n_agreements = len(context.comparisons.get("agreements") or [])
+            n_disagreements = len(context.comparisons.get("disagreements") or [])
+            st.write(f"Identified **{n_agreements}** agreements and **{n_disagreements}** disagreements.")
+
+            if mode == "Ask a Research Question":
+                status.update(label="Writing synthesis…")
+                registry["synthesize"](context)
+                st.write(f"Synthesis complete ({len(context.synthesis or ''):,} chars).")
+
+                status.update(label="Generating experiment ideas…")
+                registry["ideate"](context)
+                n_ideas = len((context.experiment_ideas or {}).get("experiment_ideas") or [])
+                st.write(f"Generated **{n_ideas}** experiment ideas.")
+            else:
+                status.update(label="Mapping papers to your project…")
+                registry["relate"](context)
+                n_related = len((context.related_work_result or {}).get("related_papers") or [])
+                st.write(f"Found **{n_related}** relevant papers.")
+
+            status.update(label="Done.", state="complete")
+
+        except Exception as exc:
+            _failed_stage = str(exc)
+            status.update(label="Pipeline error.", state="error")
+
+    if _failed_stage:
+        st.error(f"**Pipeline error:** {_failed_stage}")
+        st.stop()
+
+    # Cache pipeline outputs so results persist across widget interactions
+    st.session_state["pipeline_results"] = {
+        "mode": mode,
+        "query": context.query,
+        "synthesis": context.synthesis,
+        "comparisons": context.comparisons,
+        "experiment_ideas": context.experiment_ideas,
+        "found_papers": context.found_papers,
+        "related_work_result": context.related_work_result,
+    }
 
 # ---------------------------------------------------------------------------
-# Pipeline execution — shared stages (search → fetch → extract → compare)
+# Restore from session_state (works for both fresh run and widget re-renders)
 # ---------------------------------------------------------------------------
 
-if mode == "Ask a Research Question":
-    context = ResearchContext(query=query.strip())
-else:
-    context = ResearchContext(project_description=project_description.strip())
-
-failed_stage: str | None = None
-
-with st.status("Starting pipeline…", expanded=True) as status:
-    try:
-        if mode == "Find Related Work for My Project":
-            status.update(label="Distilling search terms from project description…")
-        else:
-            status.update(label="Searching arXiv…")
-        registry["search"](context)
-
-        if not context.found_papers:
-            status.update(label="No papers found.", state="error")
-            st.warning("arXiv returned no results. Try rephrasing your input.")
-            st.stop()
-
-        st.write(f"Found **{len(context.found_papers)}** papers.")
-
-        status.update(label=f"Fetching {len(context.found_papers)} papers…")
-        registry["fetch"](context)
-        st.write(f"Fetched text for **{len(context.summaries)}** papers.")
-
-        status.update(label="Extracting key information…")
-        registry["extract"](context)
-        st.write(f"Extracted structured fields from **{len(context.summaries)}** papers.")
-
-        status.update(label="Comparing findings across papers…")
-        registry["compare"](context)
-        n_agreements = len(context.comparisons.get("agreements") or [])
-        n_disagreements = len(context.comparisons.get("disagreements") or [])
-        st.write(f"Identified **{n_agreements}** agreements and **{n_disagreements}** disagreements.")
-
-        # --- mode-specific final stage ---
-        if mode == "Ask a Research Question":
-            status.update(label="Writing synthesis…")
-            registry["synthesize"](context)
-            st.write(f"Synthesis complete ({len(context.synthesis or ''):,} chars).")
-
-            status.update(label="Generating experiment ideas…")
-            registry["ideate"](context)
-            n_ideas = len((context.experiment_ideas or {}).get("experiment_ideas") or [])
-            st.write(f"Generated **{n_ideas}** experiment ideas.")
-        else:
-            status.update(label="Mapping papers to your project…")
-            registry["relate"](context)
-            n_related = len((context.related_work_result or {}).get("related_papers") or [])
-            st.write(f"Found **{n_related}** relevant papers.")
-
-        status.update(label="Done.", state="complete")
-
-    except Exception as exc:
-        failed_stage = str(exc)
-        status.update(label="Pipeline error.", state="error")
-
-if failed_stage:
-    st.error(f"**Pipeline error:** {failed_stage}")
-    st.stop()
+pr = st.session_state["pipeline_results"]
+pr_mode = pr["mode"]
 
 # ---------------------------------------------------------------------------
 # Results — Research Question mode
 # ---------------------------------------------------------------------------
 
-if mode == "Ask a Research Question":
+if pr_mode == "Ask a Research Question":
     st.divider()
     st.subheader("Synthesis")
 
-    if context.synthesis:
-        st.markdown(context.synthesis)
+    synthesis = pr.get("synthesis")
+    if synthesis:
+        st.markdown(synthesis)
     else:
         st.warning("No synthesis was produced.")
 
     # --- Experiment Ideas ---
-    ideas_data = context.experiment_ideas or {}
+    ideas_data = pr.get("experiment_ideas") or {}
     ideas_list = ideas_data.get("experiment_ideas") or []
     if ideas_list:
         st.divider()
@@ -244,16 +270,76 @@ if mode == "Ask a Research Question":
             color = _DIFF_COLOR.get(diff, "grey")
             label = f":{color}[{diff}]"
             star = " ⭐" if i == most_promising else ""
-            with st.expander(f"**{idea.get('title', f'Idea {i+1}')}**{star} &nbsp; {label}", expanded=(i == most_promising)):
+            with st.expander(
+                f"**{idea.get('title', f'Idea {i+1}')}**{star} &nbsp; {label}",
+                expanded=(i == most_promising),
+            ):
                 st.markdown(f"**Hypothesis:** {idea.get('hypothesis', '')}")
                 st.markdown(f"**Method:** {idea.get('method', '')}")
                 st.markdown(f"**Gap addressed:** {idea.get('gap_addressed', '')}")
                 st.caption(f"Difficulty: {diff}")
 
+        # --- Code generation UI ---
+        st.markdown("---")
+        titles = [idea["title"] for idea in ideas_list]
+        selected_title = st.selectbox(
+            "Generate code for this experiment:",
+            ["— select —"] + titles,
+            key="codegen_select",
+        )
+        gen_ready = selected_title != "— select —"
+        if st.button("Generate Code", disabled=not gen_ready, key="codegen_btn"):
+            idea_idx = titles.index(selected_title)
+            idea = ideas_list[idea_idx]
+            with st.spinner(f"Generating code for '{selected_title}'…"):
+                code_result = generate_experiment_code(idea, pr["query"])
+                st.session_state["generated_code"] = code_result
+
+        if "generated_code" in st.session_state:
+            code_result = st.session_state["generated_code"]
+            st.divider()
+            code_title = code_result.get("experiment_title", "Experiment")
+            st.subheader(f"Generated Code — {code_title}")
+
+            runtime = code_result.get("estimated_runtime", "")
+            reqs = code_result.get("requirements") or []
+            if runtime or reqs:
+                meta_parts = []
+                if runtime:
+                    meta_parts.append(f"**Estimated runtime:** {runtime}")
+                if reqs:
+                    meta_parts.append(f"**Requirements:** `pip install {' '.join(reqs)}`")
+                st.markdown("  \n".join(meta_parts))
+
+            script = code_result["python_script"]
+            notebook = code_result["notebook"]
+            safe_name = re.sub(r"[^a-z0-9]+", "_", code_title.lower()).strip("_")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button(
+                    "⬇ Download .py",
+                    data=script,
+                    file_name=f"{safe_name}.py",
+                    mime="text/plain",
+                    key="dl_py",
+                )
+            with col2:
+                st.download_button(
+                    "⬇ Download .ipynb",
+                    data=notebook,
+                    file_name=f"{safe_name}.ipynb",
+                    mime="application/json",
+                    key="dl_nb",
+                )
+
+            st.code(script, language="python")
+
     st.divider()
 
-    with st.expander(f"Papers reviewed ({len(context.found_papers)})", expanded=False):
-        for paper in context.found_papers:
+    found_papers = pr.get("found_papers") or []
+    with st.expander(f"Papers reviewed ({len(found_papers)})", expanded=False):
+        for paper in found_papers:
             col_title, col_meta = st.columns([3, 1])
             with col_title:
                 st.markdown(f"**[{paper.title}]({paper.arxiv_url})**")
@@ -276,15 +362,16 @@ if mode == "Ask a Research Question":
                     st.caption(f"{paper.citation_count:,} citations")
             st.markdown("---")
 
-    if context.comparisons:
+    comparisons = pr.get("comparisons") or {}
+    if comparisons:
         with st.expander("Cross-paper comparison", expanded=False):
-            agreements = context.comparisons.get("agreements") or []
+            agreements = comparisons.get("agreements") or []
             if agreements:
                 st.markdown("**Where the papers agree**")
                 for ag in agreements:
                     st.markdown(f"- {ag}")
 
-            disagreements = context.comparisons.get("disagreements") or []
+            disagreements = comparisons.get("disagreements") or []
             if disagreements:
                 st.markdown("**Where the papers differ**")
                 for d in disagreements:
@@ -292,7 +379,7 @@ if mode == "Ask a Research Question":
                     for paper_id, stance in (d.get("positions") or {}).items():
                         st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;`{paper_id}` — {stance}")
 
-            unique = context.comparisons.get("unique_contributions") or {}
+            unique = comparisons.get("unique_contributions") or {}
             if unique:
                 st.markdown("**Unique contributions**")
                 for paper_id, contrib in unique.items():
@@ -303,7 +390,7 @@ if mode == "Ask a Research Question":
 # ---------------------------------------------------------------------------
 
 else:
-    result = context.related_work_result or {}
+    result = pr.get("related_work_result") or {}
     related_papers = result.get("related_papers") or []
     summary = result.get("summary") or ""
 
@@ -331,8 +418,9 @@ else:
 
     st.divider()
 
-    with st.expander(f"All papers searched ({len(context.found_papers)})", expanded=False):
-        for paper in context.found_papers:
+    found_papers = pr.get("found_papers") or []
+    with st.expander(f"All papers searched ({len(found_papers)})", expanded=False):
+        for paper in found_papers:
             col_title, col_meta = st.columns([3, 1])
             with col_title:
                 st.markdown(f"**[{paper.title}]({paper.arxiv_url})**")
@@ -355,15 +443,16 @@ else:
                     st.caption(f"{paper.citation_count:,} citations")
             st.markdown("---")
 
-    if context.comparisons:
+    comparisons = pr.get("comparisons") or {}
+    if comparisons:
         with st.expander("Cross-paper comparison", expanded=False):
-            agreements = context.comparisons.get("agreements") or []
+            agreements = comparisons.get("agreements") or []
             if agreements:
                 st.markdown("**Where the papers agree**")
                 for ag in agreements:
                     st.markdown(f"- {ag}")
 
-            disagreements = context.comparisons.get("disagreements") or []
+            disagreements = comparisons.get("disagreements") or []
             if disagreements:
                 st.markdown("**Where the papers differ**")
                 for d in disagreements:
@@ -371,7 +460,7 @@ else:
                     for paper_id, stance in (d.get("positions") or {}).items():
                         st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;`{paper_id}` — {stance}")
 
-            unique = context.comparisons.get("unique_contributions") or {}
+            unique = comparisons.get("unique_contributions") or {}
             if unique:
                 st.markdown("**Unique contributions**")
                 for paper_id, contrib in unique.items():
