@@ -9,6 +9,13 @@ import streamlit as st
 import research_assistant  # noqa: F401 — triggers capability self-registration
 from research_assistant.capabilities.codegen import generate_experiment_code
 from research_assistant.context import ResearchContext
+from research_assistant.guardrails import (
+    GuardrailError,
+    check_synthesis_grounding,
+    validate_query,
+    validate_search_results,
+    validate_stage_output,
+)
 from research_assistant.registry import registry
 
 # ---------------------------------------------------------------------------
@@ -166,6 +173,15 @@ if run:
     else:
         context = ResearchContext(project_description=project_description.strip())
 
+    # --- Query / input validation ---
+    _input_text = query.strip() if mode == "Ask a Research Question" else project_description.strip()
+    _qv = validate_query(_input_text)
+    if _qv["severity"] == "block":
+        st.error(f"**Input blocked:** {_qv['issue']}")
+        st.stop()
+    if _qv["severity"] == "warn":
+        st.warning(f"**Query notice:** {_qv['issue']}")
+
     _failed_stage: str | None = None
 
     with st.status("Starting pipeline…", expanded=True) as status:
@@ -181,6 +197,12 @@ if run:
                 st.warning("arXiv returned no results. Try rephrasing your input.")
                 st.stop()
 
+            _sr = validate_search_results(
+                _input_text, context.found_papers
+            )
+            if _sr["severity"] != "ok":
+                st.warning(_sr["issue"])
+
             st.write(f"Found **{len(context.found_papers)}** papers.")
 
             status.update(label=f"Fetching {len(context.found_papers)} papers…")
@@ -190,22 +212,47 @@ if run:
             status.update(label="Extracting key information…")
             registry["extract"](context)
             st.write(f"Extracted structured fields from **{len(context.summaries)}** papers.")
+            _ev = validate_stage_output("extract", context.summaries, context)
+            for _w in _ev["warnings"]:
+                st.warning(_w)
 
             status.update(label="Comparing findings across papers…")
             registry["compare"](context)
             n_agreements = len(context.comparisons.get("agreements") or [])
             n_disagreements = len(context.comparisons.get("disagreements") or [])
             st.write(f"Identified **{n_agreements}** agreements and **{n_disagreements}** disagreements.")
+            _cv = validate_stage_output("compare", context.comparisons, context)
+            for _w in _cv["warnings"]:
+                st.warning(_w)
 
             if mode == "Ask a Research Question":
                 status.update(label="Writing synthesis…")
                 registry["synthesize"](context)
                 st.write(f"Synthesis complete ({len(context.synthesis or ''):,} chars).")
+                _sv = validate_stage_output("synthesize", {"synthesis": context.synthesis}, context)
+                for _w in _sv["warnings"]:
+                    st.warning(_w)
+
+                status.update(label="Checking synthesis grounding…")
+                context.grounding_check = check_synthesis_grounding(
+                    context.synthesis or "", context.summaries
+                )
+                _gc = context.grounding_check
+                if _gc.get("warning"):
+                    st.warning(f"**Grounding notice:** {_gc['warning']}")
+                else:
+                    st.write(
+                        f"Grounding check: **{_gc.get('confidence', 'unknown')}** confidence — "
+                        f"{len(_gc.get('grounded_claims') or [])} claims verified."
+                    )
 
                 status.update(label="Generating experiment ideas…")
                 registry["ideate"](context)
                 n_ideas = len((context.experiment_ideas or {}).get("experiment_ideas") or [])
                 st.write(f"Generated **{n_ideas}** experiment ideas.")
+                _iv = validate_stage_output("ideate", context.experiment_ideas or {}, context)
+                for _w in _iv["warnings"]:
+                    st.warning(_w)
             else:
                 status.update(label="Mapping papers to your project…")
                 registry["relate"](context)
@@ -214,6 +261,9 @@ if run:
 
             status.update(label="Done.", state="complete")
 
+        except GuardrailError as exc:
+            _failed_stage = str(exc)
+            status.update(label="Blocked by guardrail.", state="error")
         except Exception as exc:
             _failed_stage = str(exc)
             status.update(label="Pipeline error.", state="error")
@@ -231,6 +281,7 @@ if run:
         "experiment_ideas": context.experiment_ideas,
         "found_papers": context.found_papers,
         "related_work_result": context.related_work_result,
+        "grounding_check": context.grounding_check,
     }
 
 # ---------------------------------------------------------------------------
@@ -253,6 +304,33 @@ if pr_mode == "Ask a Research Question":
         st.markdown(synthesis)
     else:
         st.warning("No synthesis was produced.")
+
+    # --- Grounding check ---
+    gc = pr.get("grounding_check")
+    if gc:
+        grounded = gc.get("grounded_claims") or []
+        ungrounded = gc.get("ungrounded_claims") or []
+        confidence = gc.get("confidence", "unknown")
+        gc_warning = gc.get("warning")
+        with st.expander(
+            f"Grounding check — {confidence} confidence"
+            + (f" ({len(ungrounded)} unverified claim(s))" if ungrounded else ""),
+            expanded=bool(ungrounded),
+        ):
+            if gc_warning:
+                st.warning(gc_warning)
+            if grounded:
+                st.markdown("**Verified claims** (traceable to source extractions)")
+                for c in grounded:
+                    st.markdown(f"- {c}")
+            if ungrounded:
+                st.markdown("**Unverified claims** (could not be traced to source extractions)")
+                for c in ungrounded:
+                    st.markdown(f"- {c}")
+            st.caption(
+                "This is a probabilistic check — a claim may be correct even if absent from "
+                "the extracted snippets."
+            )
 
     # --- Experiment Ideas ---
     ideas_data = pr.get("experiment_ideas") or {}
