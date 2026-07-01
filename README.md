@@ -126,6 +126,24 @@ v2 additions, in the order they were built:
 
 ---
 
+## Guardrails
+
+The pipeline includes a validation layer (`research_assistant/guardrails.py`) that runs automatically at each stage, catching bad inputs, poor-quality outputs, and unsupported factual claims before they reach the user.
+
+**Query & Search Validation**
+
+Before the pipeline starts, the query is checked locally for obvious problems (empty, fewer than 10 characters) and then by Claude Haiku for validity — harmful requests, arithmetic, gibberish, and non-research content are blocked outright, while vague queries and non-English input produce warnings rather than stopping the pipeline. After the search stage, results are checked for volume and relevance: if fewer than 3 papers are returned, or fewer than 30% of retrieved titles match query keywords, the user is warned before the pipeline continues.
+
+**Stage Output Validation**
+
+After each of the four core processing stages, the output is checked against minimum quality thresholds: extraction coverage (at least 80% of papers must return a non-null research question and key results), comparison completeness (at least one agreement and one disagreement must be identified), synthesis quality (more than 500 characters, predominantly ASCII text, at least one paper citation by arXiv ID, "et al.", or title), and experiment idea completeness (each idea must have a non-empty hypothesis and method, and `most_promising` must be a valid index). Fatal failures stop the pipeline immediately; non-fatal issues surface as inline warnings inside the progress status block in the UI.
+
+**Hallucination / Grounding Detection**
+
+After synthesis, Claude Haiku checks whether specific factual claims in the synthesis — numbers, percentages, benchmark scores, named techniques — can be traced back to the source paper extractions. Grounded and ungrounded claims are reported separately alongside a confidence rating (high / medium / low). If ungrounded claims are found, a warning expander appears directly below the synthesis in the UI, listing the specific claims that couldn't be verified against the source material; the synthesis is still shown in full, but the user can see exactly what to check. This was validated against the same three numerical claims fact-checked manually in [`eval/EVALUATION.md`](eval/EVALUATION.md) — all three were correctly identified as grounded.
+
+---
+
 ## Running it
 
 ```bash
