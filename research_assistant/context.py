@@ -19,3 +19,4 @@ class ResearchContext:
     extraction_schema: str = "general_cs_paper"
     project_description: str | None = None
     related_work_result: dict | None = None
+    experiment_ideas: dict | None = None

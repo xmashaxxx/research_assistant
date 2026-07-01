@@ -193,6 +193,11 @@ with st.status("Starting pipeline…", expanded=True) as status:
             status.update(label="Writing synthesis…")
             registry["synthesize"](context)
             st.write(f"Synthesis complete ({len(context.synthesis or ''):,} chars).")
+
+            status.update(label="Generating experiment ideas…")
+            registry["ideate"](context)
+            n_ideas = len((context.experiment_ideas or {}).get("experiment_ideas") or [])
+            st.write(f"Generated **{n_ideas}** experiment ideas.")
         else:
             status.update(label="Mapping papers to your project…")
             registry["relate"](context)
@@ -221,6 +226,29 @@ if mode == "Ask a Research Question":
         st.markdown(context.synthesis)
     else:
         st.warning("No synthesis was produced.")
+
+    # --- Experiment Ideas ---
+    ideas_data = context.experiment_ideas or {}
+    ideas_list = ideas_data.get("experiment_ideas") or []
+    if ideas_list:
+        st.divider()
+        st.subheader("Experiment Ideas")
+        most_promising = ideas_data.get("most_promising", 0)
+        reasoning = ideas_data.get("reasoning", "")
+        if reasoning:
+            st.markdown(f"**Most promising:** {reasoning}")
+        st.markdown("")
+        _DIFF_COLOR = {"low": "green", "medium": "orange", "high": "red"}
+        for i, idea in enumerate(ideas_list):
+            diff = idea.get("difficulty", "medium")
+            color = _DIFF_COLOR.get(diff, "grey")
+            label = f":{color}[{diff}]"
+            star = " ⭐" if i == most_promising else ""
+            with st.expander(f"**{idea.get('title', f'Idea {i+1}')}**{star} &nbsp; {label}", expanded=(i == most_promising)):
+                st.markdown(f"**Hypothesis:** {idea.get('hypothesis', '')}")
+                st.markdown(f"**Method:** {idea.get('method', '')}")
+                st.markdown(f"**Gap addressed:** {idea.get('gap_addressed', '')}")
+                st.caption(f"Difficulty: {diff}")
 
     st.divider()
 
