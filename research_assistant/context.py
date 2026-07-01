@@ -21,3 +21,4 @@ class ResearchContext:
     related_work_result: dict | None = None
     experiment_ideas: dict | None = None
     generated_code: dict | None = None
+    grounding_check: dict | None = None
