@@ -64,7 +64,7 @@ The synthesis claimed EvoR achieved a 2–4× improvement in execution accuracy 
 
 ## Limitations of This Evaluation
 
-This is a small spot-check, not a comprehensive fact audit. Three verified claims out of dozens in the synthesis is enough to establish that the pipeline does not systematically hallucinate numbers, but it is not enough to rule out occasional errors elsewhere in the text. A production deployment would need automated citation verification, tracing every quantitative claim back to its source passage — rather than manual sampling.
+This is a small spot-check, not a comprehensive fact audit. Three verified claims out of dozens in the synthesis is enough to establish that the pipeline does not systematically hallucinate numbers, but it is not enough to rule out occasional errors elsewhere in the text. A production deployment would need automated citation verification, tracing every quantitative claim back to its source passage rather than manual sampling.
 
 The corpus size is also a hard constraint. With 10 papers, the agent cannot produce a synthesis comparable in scope to a human survey built on 100+. This is expected and not a failure of the pipeline; it is a consequence of running a single query against a keyword search interface. A multi-round search strategy, or seeded search from an initial result set, would expand coverage at the cost of latency and compute.
 
