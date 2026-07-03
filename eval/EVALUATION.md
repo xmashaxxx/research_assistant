@@ -76,6 +76,6 @@ Finally, the evaluation is a single run against a single query. The search resul
 
 This evaluation demonstrates two things: the pipeline reliably surfaces relevant, current literature independent of any human-curated reference list, and the specific numerical claims in its synthesis are verifiably accurate against primary sources.
 
-It does not demonstrate that the agent matches the analytical depth or taxonomic coherence of a human-authored survey. Gao et al.'s organizing framework — built from sustained engagement with a large body of work — reflects a kind of structural understanding that a single-pass pipeline over 10 papers cannot replicate. The agent's synthesis is accurate and topically coherent; it is not a substitute for expert literature synthesis.
+It does not demonstrate that the agent matches the analytical depth or taxonomic coherence of a human-authored survey. Gao et al.'s organizing framework, built from sustained engagement with a large body of work reflects a kind of structural understanding that a single-pass pipeline over 10 papers cannot replicate. The agent's synthesis is accurate and topically coherent; it is not a substitute for expert literature synthesis.
 
 What this evaluation does establish is that the pipeline is a credible starting point: it finds the right papers, reads them accurately, and reports what they say without distorting the numbers. That is a meaningful baseline for an automated system, and it is what this evaluation was designed to test.
