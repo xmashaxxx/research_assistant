@@ -1,6 +1,6 @@
 # research_assistant
 
-An agentic research assistant that takes a natural-language research question, searches arXiv and Semantic Scholar for relevant papers, reads and extracts structured findings from each, compares them across papers, synthesizes a literature review that directly answers the question, proposes concrete follow-on experiment ideas, and can generate a complete runnable Python implementation of any selected experiment on demand. A second mode accepts a project description — typed or uploaded as a PDF — and returns an annotated list of related papers with a positioning summary. The technical thesis is that a multi-step pipeline — search, extract, compare, synthesize, ideate, codegen as separable capabilities — produces a more accurate and traceable result than single-pass summarization: each stage operates on structured output from the one before it, so errors are localized and every output is grounded in verified intermediate representations rather than raw text.
+An agentic research assistant that takes a natural-language research question, searches arXiv and Semantic Scholar for relevant papers, reads and extracts structured findings from each, compares them across papers, synthesizes a literature review that directly answers the question, proposes concrete follow-on experiment ideas, and can generate a complete runnable Python implementation of any selected experiment on demand. A second mode accepts a project description, typed or uploaded as a PDF, and returns an annotated list of related papers with a positioning summary. The technical thesis is that a multi-step pipeline; search, extract, compare, synthesize, ideate, codegen as separable capabilities, produces a more accurate and traceable result than single-pass summarization: each stage operates on structured output from the one before it, so errors are localized and every output is grounded in verified intermediate representations rather than raw text.
 Watch the demo ----> https://youtu.be/ypGdeR_sSE8
 ---
 
@@ -16,19 +16,19 @@ Watch the demo ----> https://youtu.be/ypGdeR_sSE8
 
 **Stage 1 — Search** (`research_assistant/capabilities/search.py`)
 
-Queries arXiv and Semantic Scholar in parallel, merges the results, and deduplicates by arXiv ID and normalized title. Returns up to ten papers ranked by relevance. Each paper is parsed into a `PaperRecord` carrying the arXiv ID, title, authors, abstract, published date, categories, and URLs. Papers from Semantic Scholar are only retained when they carry a verifiable arXiv ID — the fetch stage requires one to retrieve full text. In "Find Related Work" mode, search keywords are first distilled from the project description by a brief Claude Haiku call before querying both sources.
+Queries arXiv and Semantic Scholar in parallel, merges the results, and deduplicates by arXiv ID and normalized title. Returns up to ten papers ranked by relevance. Each paper is parsed into a `PaperRecord` carrying the arXiv ID, title, authors, abstract, published date, categories, and URLs. Papers from Semantic Scholar are only retained when they carry a verifiable arXiv ID, the fetch stage requires one to retrieve full text. In "Find Related Work" mode, search keywords are first distilled from the project description by a brief Claude Haiku call before querying both sources.
 
 **Stage 2 — Fetch** (`research_assistant/capabilities/fetch_paper.py`)
 
-For each paper, fetches full text from the arXiv HTML endpoint and enriches metadata from three external sources: Semantic Scholar (citation count, reference list) and Papers with Code (benchmark results, top code repository by star count). Full text is capped at 50,000 characters; where the HTML endpoint is unavailable, the abstract falls back as the text source. Fetch retries transient arXiv errors with exponential backoff (5s, 15s). Papers with Code enrichment is best-effort — any network or rate-limit failure returns `(None, None)` and the pipeline continues unaffected.
+For each paper, fetches full text from the arXiv HTML endpoint and enriches metadata from three external sources: Semantic Scholar (citation count, reference list) and Papers with Code (benchmark results, top code repository by star count). Full text is capped at 50,000 characters; where the HTML endpoint is unavailable, the abstract falls back as the text source. Fetch retries transient arXiv errors with exponential backoff (5s, 15s). Papers with Code enrichment is best-effort, any network or rate-limit failure returns `(None, None)` and the pipeline continues unaffected.
 
 **Stage 3 — Extract** (`research_assistant/capabilities/extract.py`)
 
-Calls Claude Haiku (`claude-haiku-4-5-20251001`) with tool-use forced via `tool_choice` to extract six structured fields from each paper: research question, method, dataset, key results, limitations, and related work. Forcing a named tool means the output is always a typed dict — no parsing, no markdown stripping. The extraction schema is defined in `research_assistant/schemas/general_cs_paper.json` and is designed to be swapped for domain-specific schemas (clinical PICO, social science, economics) without touching any other code.
+Calls Claude Haiku (`claude-haiku-4-5-20251001`) with tool-use forced via `tool_choice` to extract six structured fields from each paper: research question, method, dataset, key results, limitations, and related work. Forcing a named tool means the output is always a typed dict, no parsing, no markdown stripping. The extraction schema is defined in `research_assistant/schemas/general_cs_paper.json` and is designed to be swapped for domain-specific schemas (clinical PICO, social science, economics) without touching any other code.
 
 **Stage 4 — Compare** (`research_assistant/capabilities/compare.py`)
 
-Calls Claude Haiku again, this time with all per-paper extractions as input, and produces three structured outputs: agreements (claims that appear across multiple papers), disagreements (positions that conflict, with per-paper stances), and unique contributions (findings specific to a single paper). This stage runs on structured extractions, not raw text — it is comparing semantics, not prose.
+Calls Claude Haiku again, this time with all per-paper extractions as input, and produces three structured outputs: agreements (claims that appear across multiple papers), disagreements (positions that conflict, with per-paper stances), and unique contributions (findings specific to a single paper). This stage runs on structured extractions, not raw text; it is comparing semantics, not prose.
 
 **Stage 5 — Synthesize** (`research_assistant/capabilities/synthesize.py`) *(Ask a Research Question mode only)*
 
@@ -36,7 +36,7 @@ Calls Claude Sonnet (`claude-sonnet-4-6`) with the per-paper extractions and the
 
 **Stage 5 (alt) — Relate** (`research_assistant/capabilities/relate_to_project.py`) *(Find Related Work mode only)*
 
-Calls Claude Haiku with forced tool-use to map the retrieved papers against the user's project description. Produces an annotated list of related papers — each with a specific relevance note explaining the connection to the project — and a one-paragraph positioning summary. Duplicate arXiv IDs in the model's output are deduplicated before returning.
+Calls Claude Haiku with forced tool-use to map the retrieved papers against the user's project description. Produces an annotated list of related papers — each with a specific relevance note explaining the connection to the project, and a one-paragraph positioning summary. Duplicate arXiv IDs in the model's output are deduplicated before returning.
 
 **Stage 6 — Ideate** (`research_assistant/capabilities/ideate.py`) *(Ask a Research Question mode only)*
 
@@ -44,7 +44,7 @@ Calls Claude Sonnet with the synthesis and the structured gap/disagreement data 
 
 **Stage 7 — Codegen** (`research_assistant/capabilities/codegen.py`) *(user-triggered)*
 
-Takes a selected experiment idea and generates a complete implementation via two sequential Claude Sonnet calls — plain text, no tool-use, full generation capability. The first call produces a runnable Python script with `argparse` for all key hyperparameters, only standard ML libraries (torch, transformers, datasets, faiss-cpu, sentence-transformers, evaluate), a formatted results table at the end of `main()`, and `if __name__ == "__main__": main()`. Header comment lines (`# Requirements:`, `# Estimated Runtime:`) are parsed and surfaced in the UI. The second call restructures the script into a Jupyter notebook with markdown section cells (Setup, Config, Data Loading, Model Setup, Experiment Loop, Results). If the notebook JSON is truncated or malformed, a minimal single-cell fallback notebook is returned so the download always works. Both files are available as direct downloads from the UI.
+Takes a selected experiment idea and generates a complete implementation via two sequential Claude Sonnet calls, plain text, no tool-use, full generation capability. The first call produces a runnable Python script with `argparse` for all key hyperparameters, only standard ML libraries (torch, transformers, datasets, faiss-cpu, sentence-transformers, evaluate), a formatted results table at the end of `main()`, and `if __name__ == "__main__": main()`. Header comment lines (`# Requirements:`, `# Estimated Runtime:`) are parsed and surfaced in the UI. The second call restructures the script into a Jupyter notebook with markdown section cells (Setup, Config, Data Loading, Model Setup, Experiment Loop, Results). If the notebook JSON is truncated or malformed, a minimal single-cell fallback notebook is returned so the download always works. Both files are available as direct downloads from the UI.
 
 ---
 
@@ -64,9 +64,9 @@ Query: *"What is the current state of retrieval-augmented generation for large l
 
 The following is the first two paragraphs of the synthesis produced on 2026-06-30, from 10 papers found independently by the agent (full synthesis and run metadata in `eval/results/`, methodology in [`eval/EVALUATION.md`](eval/EVALUATION.md)):
 
-> Retrieval-Augmented Generation (RAG) has rapidly matured from a niche technique into a broadly adopted architectural paradigm for grounding large language model outputs in external knowledge. The breadth of recent work reflects this maturity: RAG has been applied to domains as varied as clinical prediction (EHR-RAGp, [2605.12335]), legal document evaluation ([2509.12382]), code generation (EvoR, [2402.12317]), multi-hop question answering (FAIR-RAG, [2510.22344]), Quranic studies ([2503.16581]), automated literature review ([2411.18583]), and even image generation ([2506.06962]). Across the literature, there is strong consensus that retrieved context quality is the primary determinant of downstream response quality, and that faithfulness, relevance, and accuracy constitute the canonical triad of evaluation metrics. The field broadly agrees that dynamic and iterative retrieval mechanisms outperform static, single-pass approaches — a finding replicated across question answering, code generation, and image synthesis settings alike.
+> Retrieval-Augmented Generation (RAG) has rapidly matured from a niche technique into a broadly adopted architectural paradigm for grounding large language model outputs in external knowledge. The breadth of recent work reflects this maturity: RAG has been applied to domains as varied as clinical prediction (EHR-RAGp, [2605.12335]), legal document evaluation ([2509.12382]), code generation (EvoR, [2402.12317]), multi-hop question answering (FAIR-RAG, [2510.22344]), Quranic studies ([2503.16581]), automated literature review ([2411.18583]), and even image generation ([2506.06962]). Across the literature, there is strong consensus that retrieved context quality is the primary determinant of downstream response quality, and that faithfulness, relevance, and accuracy constitute the canonical triad of evaluation metrics. The field broadly agrees that dynamic and iterative retrieval mechanisms outperform static, single-pass approaches, a finding replicated across question answering, code generation, and image synthesis settings alike.
 >
-> Where the literature diverges meaningfully is on the question of *how* retrieval should be structured. EvoR ([2402.12317]) argues that a heterogeneous "knowledge soup" combining library documentation, web search results, execution traces, and LLM-generated snippets — updated synchronously with iteratively refined queries — yields 2–4× accuracy improvements over single-source baselines in code generation. FAIR-RAG ([2510.22344]) takes yet another perspective, attributing performance gains primarily to query-side complexity analysis: its Structured Evidence Assessment (SEA) module deconstructs multi-hop queries into required sub-findings, achieving an 8.3-point F1 improvement over iterative baselines on HotpotQA. The multi-agent RAG architecture ([2412.05838]) proposes that retrieval should be decomposed by data modality — deploying specialized agents for relational databases, document stores, and graph databases respectively. These positions suggest that optimal retrieval granularity and source diversity are task-dependent design choices rather than universal recommendations.
+> Where the literature diverges meaningfully is on the question of *how* retrieval should be structured. EvoR ([2402.12317]) argues that a heterogeneous "knowledge soup" combining library documentation, web search results, execution traces, and LLM-generated snippets, updated synchronously with iteratively refined queries that yields 2–4× accuracy improvements over single-source baselines in code generation. FAIR-RAG ([2510.22344]) takes yet another perspective, attributing performance gains primarily to query-side complexity analysis: its Structured Evidence Assessment (SEA) module deconstructs multi-hop queries into required sub-findings, achieving an 8.3-point F1 improvement over iterative baselines on HotpotQA. The multi-agent RAG architecture ([2412.05838]) proposes that retrieval should be decomposed by data modality; deploying specialized agents for relational databases, document stores, and graph databases respectively. These positions suggest that optimal retrieval granularity and source diversity are task-dependent design choices rather than universal recommendations.
 
 The 10 papers in this run, discovered by arXiv keyword search with no manual curation:
 
@@ -87,7 +87,7 @@ The 10 papers in this run, discovered by arXiv keyword search with no manual cur
 
 ## Evaluation
 
-The agent was given the query that Gao et al.'s 2023 survey (*Retrieval-Augmented Generation for Large Language Models: A Survey*, arXiv 2312.10997) was written to answer, and searched independently. The Gao survey did not appear in the agent's results, confirming the evaluation corpus is genuinely independent. The agent's synthesis themes — retrieval mechanism design, knowledge source diversity, model size trade-offs, security, and evaluation rigor — were mapped against Gao et al.'s Naive/Advanced/Modular taxonomy and Retrieval/Generation/Augmentation framing. Three specific numerical claims in the synthesis were verified manually against primary sources: all three matched exactly with no distortion.
+The agent was given the query that Gao et al.'s 2023 survey (*Retrieval-Augmented Generation for Large Language Models: A Survey*, arXiv 2312.10997) was written to answer, and searched independently. The Gao survey did not appear in the agent's results, confirming the evaluation corpus is genuinely independent. The agent's synthesis themes, retrieval mechanism design, knowledge source diversity, model size trade-offs, security, and evaluation rigor, were mapped against Gao et al.'s Naive/Advanced/Modular taxonomy and Retrieval/Generation/Augmentation framing. Three specific numerical claims in the synthesis were verified manually against primary sources: all three matched exactly with no distortion.
 
 Full methodology, coverage assessment, and factual accuracy spot-check: [`eval/EVALUATION.md`](eval/EVALUATION.md).
 
@@ -111,7 +111,7 @@ Full design rationale, data-flow diagram, and extension points: [`docs/ARCHITECT
 
 ---
 
-## v1 → v2
+## v1 to v2
 
 v1 shipped search through synthesize — a five-stage pipeline with a single "Ask a Research Question" mode and a basic Streamlit UI.
 
@@ -132,7 +132,7 @@ The pipeline includes a validation layer (`research_assistant/guardrails.py`) th
 
 **Query & Search Validation**
 
-Before the pipeline starts, the query is checked locally for obvious problems (empty, fewer than 10 characters) and then by Claude Haiku for validity — harmful requests, arithmetic, gibberish, and non-research content are blocked outright, while vague queries and non-English input produce warnings rather than stopping the pipeline. After the search stage, results are checked for volume and relevance: if fewer than 3 papers are returned, or fewer than 30% of retrieved titles match query keywords, the user is warned before the pipeline continues.
+Before the pipeline starts, the query is checked locally for obvious problems (empty, fewer than 10 characters) and then by Claude Haiku for validity, harmful requests, arithmetic, gibberish, and non-research content are blocked outright, while vague queries and non-English input produce warnings rather than stopping the pipeline. After the search stage, results are checked for volume and relevance: if fewer than 3 papers are returned, or fewer than 30% of retrieved titles match query keywords, the user is warned before the pipeline continues.
 
 **Stage Output Validation**
 
@@ -140,7 +140,7 @@ After each of the four core processing stages, the output is checked against min
 
 **Hallucination / Grounding Detection**
 
-After synthesis, Claude Haiku checks whether specific factual claims in the synthesis — numbers, percentages, benchmark scores, named techniques — can be traced back to the source paper extractions. Grounded and ungrounded claims are reported separately alongside a confidence rating (high / medium / low). If ungrounded claims are found, a warning expander appears directly below the synthesis in the UI, listing the specific claims that couldn't be verified against the source material; the synthesis is still shown in full, but the user can see exactly what to check. This was validated against the same three numerical claims fact-checked manually in [`eval/EVALUATION.md`](eval/EVALUATION.md) — all three were correctly identified as grounded.
+After synthesis, Claude Haiku checks whether specific factual claims in the synthesis — numbers, percentages, benchmark scores, named techniques, can be traced back to the source paper extractions. Grounded and ungrounded claims are reported separately alongside a confidence rating (high / medium / low). If ungrounded claims are found, a warning expander appears directly below the synthesis in the UI, listing the specific claims that couldn't be verified against the source material; the synthesis is still shown in full, but the user can see exactly what to check. This was validated against the same three numerical claims fact-checked manually in [`eval/EVALUATION.md`](eval/EVALUATION.md) — all three were correctly identified as grounded.
 
 ---
 
@@ -183,8 +183,4 @@ Tests that require `ANTHROPIC_API_KEY` are skipped automatically when the key is
 
 This project was built collaboratively with [Claude Code](https://claude.com/claude-code). Claude is listed as co-author on individual commits throughout the history — that attribution reflects how the code was actually written, not a generic disclosure.
 
----
 
-## License
-
-MIT. See [LICENSE](LICENSE).
